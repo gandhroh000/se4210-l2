@@ -7,7 +7,9 @@ SE4210 Learning Sprint 2 (visualization)
 This project is a lightweight, single-file HTML interactive visualization that explains the computer science concept of a "Buffer Overflow" using a fun conveyor belt sushi restaurant analogy.
 
 ## How to Run
-Simply open the `sushi_overflow.html` file in any modern web browser. No server or build tools are required!
+Simply open the `sushi_overflow.html` file in any modern web browser. No server or build tools are required! 
+
+> This has only been tested on computer browser.
 
 ## Concept Mapping
 *   **Table 1:** The allocated memory buffer.
