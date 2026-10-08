@@ -1,7 +1,3 @@
-# se4210-l2
-SE4210 Learning Sprint 2 (visualization)
-
-
 # Sushi Buffer Overflow Visualization
 
 This project is a lightweight, single-file HTML interactive visualization that explains the computer science concept of a "Buffer Overflow" using a fun conveyor belt sushi restaurant analogy.
