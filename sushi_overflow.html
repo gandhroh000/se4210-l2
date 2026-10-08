@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sushi Buffer Overflow Visualization</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --bg-color: #9bbc0f;
+            --text-color: #0f380f;
+            --border-color: #306230;
+            --highlight-color: #8bac0f;
+            --alert-color: #e00000;
+        }
+
+        body {
+            font-family: 'Press Start 2P', monospace;
+            background-color: #333;
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-size: 10px;
+            line-height: 1.5;
+        }
+
+        #game-container {
+            background-color: var(--bg-color);
+            width: 800px;
+            height: 500px;
+            border: 10px solid var(--border-color);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #screen {
+            flex-grow: 1;
+            padding: 20px;
+            position: relative;
+        }
+
+        .title {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        /* Conveyor Belt */
+        #conveyor-area {
+            display: flex;
+            align-items: flex-end;
+            margin-top: 40px;
+            height: 100px;
+            position: relative;
+        }
+
+        .section {
+            border: 4px solid var(--border-color);
+            height: 80px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 5px;
+            margin-right: 5px;
+            background-color: var(--highlight-color);
+            flex-shrink: 0;
+        }
+
+        .section-label {
+            position: absolute;
+            top: -25px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 8px;
+        }
+
+        #table1 { width: 175px; z-index: 100; } 
+        #table2 { width: 175px; z-index: 1; }
+        #waiter-station { width: 80px; z-index: 1; }
+        #chef-station { width: 80px; border-color: var(--alert-color); z-index: 1; }
+
+        .plates-container {
+            display: flex;
+            position: absolute;
+            left: 5px;
+            top: 25px; /* position it properly within the section */
+        }
+
+        .plate {
+            width: 30px;
+            height: 30px;
+            min-width: 30px;
+            background-color: white;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 5px;
+            font-size: 16px;
+            animation: slideIn 0.5s forwards;
+            opacity: 0;
+            z-index: 10;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-50px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .plate.glitch {
+            /* Run slideIn first, then start the infinite glitch after a 0.5s delay */
+            animation: slideIn 0.5s forwards, glitch 0.2s infinite 0.5s;
+            background-color: var(--alert-color);
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0) }
+            20% { transform: translate(-2px, 2px) }
+            40% { transform: translate(-2px, -2px) }
+            60% { transform: translate(2px, 2px) }
+            80% { transform: translate(2px, -2px) }
+            100% { transform: translate(0) }
+        }
+
+        /* Characters */
+        .character {
+            position: absolute;
+            bottom: -30px;
+            font-size: 24px;
+            text-align: center;
+            width: 100%;
+            transition: all 0.5s;
+            z-index: 5;
+        }
+
+        .run-away {
+            animation: runaway 2s forwards;
+        }
+
+        @keyframes runaway {
+            to { transform: translateX(-800px); opacity: 0; }
+        }
+
+        .chef-meltdown {
+            animation: chefGrowAndChase 3s forwards;
+            z-index: 50;
+        }
+
+        @keyframes chefGrowAndChase {
+            0% { transform: scale(1); }
+            30% { transform: scale(4); content: '🤬🔥'; }
+            100% { transform: scale(4) translateX(-200px); }
+        }
+
+        /* Dialogue Box */
+        #dialogue-box {
+            height: 120px;
+            background-color: var(--highlight-color);
+            border-top: 10px solid var(--border-color);
+            padding: 15px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        #dialogue-text {
+            margin-bottom: 15px;
+            min-height: 40px;
+        }
+
+        /* Controls */
+        #controls {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        button {
+            font-family: 'Press Start 2P', monospace;
+            background-color: var(--border-color);
+            color: var(--bg-color);
+            border: 4px solid var(--text-color);
+            padding: 10px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: var(--text-color);
+        }
+
+        button:disabled {
+            background-color: #777;
+            border-color: #555;
+            color: #999;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        /* Overlays */
+        #crash-screen, #debrief-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+            color: var(--alert-color);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            box-sizing: border-box;
+            z-index: 100;
+        }
+
+        #crash-screen h1 { font-size: 32px; text-align: center; margin-bottom: 20px;}
+        #crash-screen p { color: white; text-align: center; font-size: 12px; margin-bottom: 40px; }
+        
+        #debrief-screen { background-color: #111; color: #0f0; }
+        #debrief-screen h1 { font-size: 20px; margin-bottom: 30px; color: #0f0;}
+        #debrief-screen ul { list-style-type: none; padding: 0; width: 100%; }
+        #debrief-screen li { margin-bottom: 20px; font-size: 12px; border-bottom: 1px solid #333; padding-bottom: 10px; line-height: 1.8;}
+        .highlight-term { color: #ff00ff; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="screen">
+        <div class="title">🍣 Sushi Conveyor OS v1.0 🍣</div>
+
+        <div id="conveyor-area" style="display: none;">
+            <div class="section" id="table1">
+                <div class="section-label">Table 1 (You)</div>
+                <div class="character" id="char-t1">🧑</div>
+                <div id="plates-t1" class="plates-container"></div>
+            </div>
+            <div class="section" id="table2">
+                <div class="section-label">Table 2 (Guest)</div>
+                <div class="character" id="char-t2">👱‍♀️</div>
+                <div id="plates-t2" class="plates-container"></div>
+            </div>
+            <div class="section" id="waiter-station">
+                <div class="section-label">Waiter</div>
+                <div class="character" id="char-waiter">🤵</div>
+                <div id="plates-waiter" class="plates-container"></div>
+            </div>
+            <div class="section" id="chef-station">
+                <div class="section-label">Chef</div>
+                <div class="character" id="char-chef">👨‍🍳</div>
+                <div id="plates-chef" class="plates-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dialogue-box">
+        <div id="dialogue-text">Initializing...</div>
+        <div id="controls">
+            <button id="btn-next">Next</button>
+            <button id="btn-normal" style="display: none;">Normal Order (3)</button>
+            <button id="btn-override" disabled style="display: none;">MEGA GLUTTONY OVERRIDE (15)</button>
+        </div>
+    </div>
+
+    <div id="crash-screen">
+        <h1>FATAL EXCEPTION</h1>
+        <p>No more food. You've corrupted our souls by ordering too much.</p>
+        <button id="btn-debrief">Technical Debrief</button>
+    </div>
+
+    <div id="debrief-screen">
+        <h1>Technical Debrief: Buffer Overflow</h1>
+        <ul>
+            <li><span class="highlight-term">Table 1's Section = The Buffer.</span><br> This was the designated memory space allocated for your data (orders). It only had room for 5 plates.</li>
+            <li><span class="highlight-term">Table 2's Section = Adjacent Memory.</span><br> Because the system didn't check if you ordered too much (bounds checking), your extra plates spilled over and overwrote the next table's data.</li>
+            <li><span class="highlight-term">Chef's Meltdown = Overwriting Return Address.</span><br> The overflow reached a critical system component. By overwriting the Chef's instructions, the system lost control of execution flow, resulting in a crash.</li>
+        </ul>
+        <button onclick="location.reload()">Restart System</button>
+    </div>
+</div>
+
+<script>
+    const dialogueText = document.getElementById('dialogue-text');
+    const btnNext = document.getElementById('btn-next');
+    const btnNormal = document.getElementById('btn-normal');
+    const btnOverride = document.getElementById('btn-override');
+    const conveyorArea = document.getElementById('conveyor-area');
+    
+    const platesT1 = document.getElementById('plates-t1');
+    const platesT2 = document.getElementById('plates-t2');
+    const platesWaiter = document.getElementById('plates-waiter');
+    const platesChef = document.getElementById('plates-chef');
+
+    const charT1 = document.getElementById('char-t1');
+    const charT2 = document.getElementById('char-t2');
+    const charWaiter = document.getElementById('char-waiter');
+    const charChef = document.getElementById('char-chef');
+
+    let state = 0;
+
+    const tutorialSteps = [
+        "Welcome to the C-Food Sushi Restaurant! You are seated at Table 1.",
+        "Rule #1: Only order what fits in your designated section of the belt (Max 5 plates).",
+        "If you order more, you might ruin another guest's meal!",
+        "Let's try a safe, normal order. Click 'Normal Order'."
+    ];
+
+    function typeWriter(text, i = 0) {
+        if (i === 0) {
+            dialogueText.innerHTML = "";
+            disableAllButtons();
+        }
+        if (i < text.length) {
+            dialogueText.innerHTML += text.charAt(i);
+            setTimeout(() => typeWriter(text, i + 1), 20);
+        } else {
+            enableRelevantButtons();
+        }
+    }
+
+    function disableAllButtons() {
+        btnNext.disabled = true;
+        btnNormal.disabled = true;
+        btnOverride.disabled = true;
+    }
+
+    function enableRelevantButtons() {
+        if (state < tutorialSteps.length) {
+            btnNext.disabled = false;
+        } else if (state === tutorialSteps.length) {
+            btnNormal.disabled = false;
+        } else if (state === tutorialSteps.length + 1) {
+            btnOverride.disabled = false;
+        }
+    }
+
+    function addPlates(targetElement, count, glitch = false, delayOffset = 0) {
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+                const plate = document.createElement('div');
+                plate.className = 'plate' + (glitch ? ' glitch' : '');
+                plate.innerHTML = '🍣';
+                targetElement.appendChild(plate);
+            }, (delayOffset + i) * 200);
+        }
+    }
+
+    function clearPlates() {
+        platesT1.innerHTML = '';
+        platesT2.innerHTML = '';
+        platesWaiter.innerHTML = '';
+        platesChef.innerHTML = '';
+    }
+
+    btnNext.addEventListener('click', () => {
+        if (state >= tutorialSteps.length) return; // Prevent double clicks
+        state++;
+        if (state === 1) {
+            conveyorArea.style.display = 'flex';
+        }
+        
+        if (state < tutorialSteps.length) {
+            typeWriter(tutorialSteps[state]);
+        } else if (state === tutorialSteps.length) {
+            btnNext.style.display = 'none';
+            btnNormal.style.display = 'block';
+            btnOverride.style.display = 'block';
+            typeWriter(tutorialSteps[state - 1]); // replay last
+        }
+    });
+
+    btnNormal.addEventListener('click', () => {
+        if (state !== tutorialSteps.length) return; // Prevent double clicks
+        state++; // Advance state immediately
+        
+        disableAllButtons();
+        clearPlates();
+        typeWriter("Ordering 3 plates... Processing...");
+        
+        addPlates(platesT1, 3);
+        
+        setTimeout(() => {
+            typeWriter("Delicious! The plates stayed within your buffer. Now, notice the 'MEGA GLUTTONY' button unlocked. The system trusts you won't misuse it...");
+            // enableRelevantButtons() will be called automatically when typeWriter finishes
+        }, 2000);
+    });
+
+    btnOverride.addEventListener('click', () => {
+        disableAllButtons();
+        clearPlates();
+        typeWriter("WARNING: ORDERING 15 PLATES. BOUNDS CHECKING DISABLED.");
+        
+        // Table 1 fits 5 plates. We'll append ALL 15 plates to Table 1 to visually show the overflow
+        addPlates(platesT1, 5, false, 0); // Safe plates
+        addPlates(platesT1, 10, true, 5); // Overflow plates (glitched)
+        
+        // Table 2 Guest reacts
+        setTimeout(() => {
+            charT2.innerHTML = '😱'; // Guest terrified
+        }, 5 * 200);
+
+        // Waiter reacts
+        setTimeout(() => {
+            charWaiter.innerHTML = '😱'; // Waiter terrified
+            typeWriter("Waiter: CHEF! Table 1 ordered way too much! It's spilling over!");
+        }, 10 * 200);
+
+        // Chef Meltdown and chase
+        setTimeout(() => {
+            charChef.innerHTML = '🤬🔥'; // Chef explodes in flames
+            charChef.classList.add('chef-meltdown');
+
+            // Others run away
+            charT1.innerHTML = '😱';
+            charT1.classList.add('run-away');
+            charT2.classList.add('run-away');
+            charWaiter.classList.add('run-away');
+
+        }, 12 * 200);
+
+        // Trigger crash screen
+        setTimeout(() => {
+            document.getElementById('crash-screen').style.display = 'flex';
+        }, 16 * 200 + 1500);
+    });
+
+    document.getElementById('btn-debrief').addEventListener('click', () => {
+        document.getElementById('crash-screen').style.display = 'none';
+        document.getElementById('debrief-screen').style.display = 'flex';
+    });
+
+    // Start
+    typeWriter(tutorialSteps[0]);
+
+</script>
+</body>
+</html>
